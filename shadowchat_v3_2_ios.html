@@ -1,0 +1,400 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ShadowChat V3.2 (iOS friendly)</title>
+<style>
+:root{
+  --bg:#0f0f17; --panel:#161624; --line:#222; --me:#4a6cff; --ai:#26263a; --btn:#2c2c44; --muted:rgba(255,255,255,.6);
+}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Arial;background:var(--bg);color:#fff;}
+.top{height:52px;display:flex;align-items:center;justify-content:center;background:var(--panel);position:relative;font-weight:700;}
+.top .left{position:absolute;left:10px;}
+.top .right{position:absolute;right:10px;}
+button{background:var(--btn);color:#fff;border:none;border-radius:10px;padding:10px 14px;cursor:pointer;}
+input,textarea{width:calc(100% - 28px);margin:10px 14px;padding:10px;border:none;border-radius:10px;background:#0b0b12;color:#fff;}
+.page{display:none;min-height:calc(100vh - 52px);padding-bottom:90px;}
+.page.active{display:block;}
+.charItem{display:flex;gap:12px;align-items:center;padding:14px;border-bottom:1px solid var(--line);cursor:pointer;}
+.charItem img{width:46px;height:46px;border-radius:50%;object-fit:cover;background:#333;}
+.charText{display:flex;flex-direction:column;}
+.charText .name{font-weight:700;}
+.charText .preview{font-size:12px;color:var(--muted);margin-top:4px;}
+
+#messages{padding:16px;display:flex;flex-direction:column;gap:10px;}
+.msg{max-width:72%;padding:10px 14px;border-radius:16px;white-space:pre-wrap;word-break:break-word;}
+.msg.user{align-self:flex-end;background:var(--me);}
+.msg.ai{align-self:flex-start;background:var(--ai);}
+
+.bottomBar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);padding:10px;display:flex;gap:8px;}
+.bottomBar input{margin:0;flex:1;width:auto;}
+.bottomBar button{background:var(--me);}
+.smallHint{margin:0 14px;color:var(--muted);font-size:12px;}
+.cardBtn{width:calc(100% - 28px);margin:10px 14px;padding:14px;text-align:left;background:#12121f;border:1px solid #2a2a40;}
+.cardBtn small{display:block;color:var(--muted);margin-top:6px;}
+#menu{position:fixed;right:12px;top:62px;background:#1d1d2e;border:1px solid #333;border-radius:10px;padding:10px;display:none;z-index:10;}
+#menu button{width:160px;margin:5px 0;background:var(--btn);}
+#resetConfirm{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);display:none;z-index:11;}
+#resetConfirm button{background:#ff4a4a;}
+.badge{position:fixed;left:10px;top:60px;font-size:12px;color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div class="top" id="mainTop">
+  <div class="left"></div>
+  <div>ShadowChat</div>
+  <div class="right"></div>
+</div>
+
+<div class="badge" id="jsBadge">JS loading…</div>
+
+<!-- LIST -->
+<section id="listPage" class="page active">
+  <input id="searchBox" placeholder="캐릭터 검색" oninput="renderList()" />
+  <button style="width:calc(100% - 28px);margin:0 14px 10px;" onclick="goCreate()">+ 캐릭터 제작</button>
+  <div id="charList"></div>
+</section>
+
+<!-- CREATE -->
+<section id="createPage" class="page">
+  <div class="top">
+    <div class="left"><button onclick="goList()">←</button></div>
+    <div>캐릭터 제작</div>
+    <div class="right"></div>
+  </div>
+
+  <p class="smallHint">이름은 맨 위에서 먼저 입력! (원하면 나중에 바꿀 수 있어)</p>
+  <input id="charName" placeholder="캐릭터 이름" />
+
+  <p class="smallHint">프로필 업로드</p>
+  <img id="profilePreview" style="width:72px;height:72px;border-radius:50%;object-fit:cover;background:#333;margin:6px 14px;display:block;" />
+  <button style="width:calc(100% - 28px);margin:0 14px 10px;" onclick="document.getElementById('profileUpload').click()">프로필 업로드</button>
+  <input id="profileUpload" type="file" accept="image/*" style="display:none" onchange="onProfilePicked(event)" />
+
+  <button class="cardBtn" onclick="openText('world')">🌍 세계관 <small id="worldPreview">아직 없음</small></button>
+  <button class="cardBtn" onclick="openText('person')">🎭 캐릭터 성격 <small id="personPreview">아직 없음</small></button>
+  <button class="cardBtn" onclick="openIntro()">💬 인트로 대화 <small id="introPreview">말풍선 여러 개로 만들 수 있어</small></button>
+
+  <button style="width:calc(100% - 28px);margin:10px 14px;" onclick="saveCharacter()">캐릭터 저장</button>
+  <button style="width:calc(100% - 28px);margin:0 14px 10px;" onclick="tempSave()">임시 저장</button>
+</section>
+
+<!-- TEXT EDIT -->
+<section id="textPage" class="page">
+  <div class="top">
+    <div class="left"><button onclick="backFromText()">←</button></div>
+    <div id="textTitle">입력</div>
+    <div class="right"></div>
+  </div>
+  <p class="smallHint" id="textHint"></p>
+  <textarea id="textArea" rows="10"></textarea>
+  <button style="width:calc(100% - 28px);margin:0 14px 10px;" onclick="saveText()">저장</button>
+</section>
+
+<!-- INTRO BUILDER -->
+<section id="introPage" class="page">
+  <div class="top">
+    <div class="left"><button onclick="backFromIntro()">←</button></div>
+    <div>인트로 대화</div>
+    <div class="right"></div>
+  </div>
+  <p class="smallHint">▶ 누를 때마다 말풍선 1개 추가돼. (삭제는 말풍선을 2초 꾹!)</p>
+  <div id="introMsgs"></div>
+
+  <div class="bottomBar">
+    <input id="introInput" placeholder="인트로 말풍선 입력" />
+    <button onclick="addIntroLine()">▶</button>
+  </div>
+</section>
+
+<!-- CHAT -->
+<section id="chatPage" class="page">
+  <div class="top">
+    <div class="left"><button onclick="goList()">←</button></div>
+    <div id="chatName">대화</div>
+    <div class="right"><button onclick="toggleMenu()">☰</button></div>
+  </div>
+
+  <div id="menu">
+    <button onclick="askReset()">대화 초기화</button>
+    <button onclick="saveChatSnapshot()">대화 저장</button>
+  </div>
+
+  <div id="messages"></div>
+
+  <div id="resetConfirm">
+    <button onclick="confirmReset()">대화 초기화</button>
+  </div>
+
+  <div class="bottomBar">
+    <input id="chatInput" placeholder="메세지 입력" />
+    <button onclick="sendMsg()">▶</button>
+  </div>
+</section>
+
+<script>
+/* If this badge changes, JS is working */
+document.getElementById("jsBadge").textContent = "JS OK ✅ (화면 전환 가능)";
+
+let chars = JSON.parse(localStorage.getItem("shadow_chars")||"[]");
+let chats = JSON.parse(localStorage.getItem("shadow_chats")||"{}");
+let tempChar = JSON.parse(localStorage.getItem("shadow_temp")||"{}");
+let currentId = null;
+
+function persist(){
+  localStorage.setItem("shadow_chars", JSON.stringify(chars));
+  localStorage.setItem("shadow_chats", JSON.stringify(chats));
+  localStorage.setItem("shadow_temp", JSON.stringify(tempChar));
+}
+
+function show(id){
+  ["listPage","createPage","textPage","introPage","chatPage"].forEach(pid=>{
+    document.getElementById(pid).classList.remove("active");
+  });
+  document.getElementById(id).classList.add("active");
+  hideMenu();
+  hideResetUI();
+}
+
+function goList(){ show("listPage"); renderList(); }
+function goCreate(){
+  tempChar = tempChar && typeof tempChar === "object" ? tempChar : {};
+  tempChar.name = tempChar.name || "";
+  tempChar.world = tempChar.world || "";
+  tempChar.person = tempChar.person || "";
+  tempChar.introLines = Array.isArray(tempChar.introLines) ? tempChar.introLines : [];
+  tempChar.img = tempChar.img || "";
+  syncCreate();
+  show("createPage");
+}
+
+function renderList(){
+  const q = (document.getElementById("searchBox").value||"").toLowerCase();
+  const box = document.getElementById("charList");
+  box.innerHTML = "";
+  chars.filter(c => (c.name||"").toLowerCase().includes(q)).forEach(c => {
+    const div = document.createElement("div");
+    div.className = "charItem";
+    div.onclick = () => openChat(c.id);
+
+    const img = document.createElement("img");
+    img.src = c.img || "";
+
+    const text = document.createElement("div");
+    text.className = "charText";
+
+    const nm = document.createElement("div");
+    nm.className = "name";
+    nm.textContent = c.name;
+
+    const pv = document.createElement("div");
+    pv.className = "preview";
+    const last = (chats[c.name]||[]).slice(-1)[0];
+    pv.textContent = last ? last.text : "대화 없음";
+
+    text.appendChild(nm);
+    text.appendChild(pv);
+
+    div.appendChild(img);
+    div.appendChild(text);
+    box.appendChild(div);
+  });
+}
+
+function uid(){
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+}
+
+function syncCreate(){
+  document.getElementById("charName").value = tempChar.name || "";
+  document.getElementById("profilePreview").src = tempChar.img || "";
+  document.getElementById("worldPreview").textContent = tempChar.world ? tempChar.world.slice(0,40)+(tempChar.world.length>40?"…":"") : "아직 없음";
+  document.getElementById("personPreview").textContent = tempChar.person ? tempChar.person.slice(0,40)+(tempChar.person.length>40?"…":"") : "아직 없음";
+  document.getElementById("introPreview").textContent = (tempChar.introLines||[]).length ? (tempChar.introLines.slice(0,2).join(" / ").slice(0,40)+"…") : "말풍선 여러 개로 만들 수 있어";
+}
+
+function onProfilePicked(e){
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    tempChar.img = ev.target.result;
+    persist();
+    syncCreate();
+  };
+  reader.readAsDataURL(file);
+}
+
+/* text edit */
+let editingKey = null;
+function openText(key){
+  editingKey = key;
+  document.getElementById("textTitle").textContent = (key==="world") ? "세계관 입력" : "캐릭터 성격";
+  document.getElementById("textHint").textContent = (key==="world")
+    ? "세계관을 적어두면 캐릭터가 기억해."
+    : "말투/성격/금지 행동 등을 적어두면 성격 잠금에 써.";
+  document.getElementById("textArea").value = tempChar[key] || "";
+  show("textPage");
+}
+function backFromText(){ show("createPage"); syncCreate(); }
+function saveText(){
+  const val = document.getElementById("textArea").value || "";
+  if(editingKey) tempChar[editingKey] = val;
+  persist();
+  show("createPage");
+  syncCreate();
+}
+
+/* intro builder */
+function openIntro(){ renderIntro(); show("introPage"); }
+function backFromIntro(){ persist(); show("createPage"); syncCreate(); }
+function renderIntro(){
+  const box = document.getElementById("introMsgs");
+  box.innerHTML = "";
+  (tempChar.introLines||[]).forEach((line, idx) => {
+    const div = document.createElement("div");
+    div.className = "msg ai";
+    div.textContent = line;
+    attachLongPress(div, () => {
+      tempChar.introLines.splice(idx,1);
+      persist();
+      renderIntro();
+    });
+    box.appendChild(div);
+  });
+}
+function addIntroLine(){
+  const inp = document.getElementById("introInput");
+  const t = (inp.value||"").trim();
+  if(!t) return;
+  if(!Array.isArray(tempChar.introLines)) tempChar.introLines = [];
+  tempChar.introLines.push(t);
+  inp.value = "";
+  persist();
+  renderIntro();
+}
+
+/* saving character */
+function tempSave(){
+  tempChar.name = (document.getElementById("charName").value||"").trim();
+  persist();
+  alert("임시 저장됨!");
+}
+function saveCharacter(){
+  const name = (document.getElementById("charName").value||"").trim();
+  if(!name){ alert("캐릭터 이름 먼저 입력해줘!"); return; }
+  tempChar.name = name;
+  const c = {
+    id: uid(),
+    name: tempChar.name,
+    img: tempChar.img || "",
+    world: tempChar.world || "",
+    person: tempChar.person || "",
+    introLines: Array.isArray(tempChar.introLines) ? tempChar.introLines : []
+  };
+  chars.push(c);
+  if(!chats[c.name]) chats[c.name] = [];
+  tempChar = {};
+  persist();
+  goList();
+}
+
+/* chat */
+function openChat(id){
+  const c = chars.find(x => x.id === id);
+  if(!c) return;
+  currentId = id;
+  document.getElementById("chatName").textContent = c.name;
+  loadChat();
+  show("chatPage");
+}
+function loadChat(){
+  const box = document.getElementById("messages");
+  box.innerHTML = "";
+  const c = chars.find(x => x.id === currentId);
+  if(!c) return;
+  const arr = chats[c.name] || [];
+  if(arr.length === 0 && Array.isArray(c.introLines)){
+    c.introLines.forEach(line => addMsg(line, "ai", false));
+  }
+  arr.forEach(m => addMsg(m.text, m.type, false));
+  box.scrollTop = box.scrollHeight;
+}
+function addMsg(text, type, saveIt){
+  const div = document.createElement("div");
+  div.className = "msg " + type;
+  div.textContent = text;
+
+  attachLongPress(div, () => {
+    const c = chars.find(x => x.id === currentId);
+    if(!c) return;
+    const arr = chats[c.name] || [];
+    const i = arr.findIndex(x => x.text===text && x.type===type);
+    if(i>=0){ arr.splice(i,1); chats[c.name]=arr; persist(); }
+    div.remove();
+  });
+
+  document.getElementById("messages").appendChild(div);
+  if(saveIt){
+    const c = chars.find(x => x.id === currentId);
+    if(!c) return;
+    if(!chats[c.name]) chats[c.name] = [];
+    chats[c.name].push({text, type});
+    persist();
+  }
+}
+function sendMsg(){
+  const inp = document.getElementById("chatInput");
+  const t = (inp.value||"").trim();
+  if(!t) return;
+  inp.value = "";
+  addMsg(t, "user", true);
+
+  const c = chars.find(x => x.id === currentId);
+  const mem = (c && (c.world||c.person)) ? " (" + [c.world,c.person].filter(Boolean).map(x=>x.slice(0,18)).join(" / ") + ")" : "";
+  const reply = "*조용히 바라본다* …계속 말해봐." + mem;
+  setTimeout(()=>addMsg(reply, "ai", true), 450);
+}
+
+/* long press helper */
+function attachLongPress(el, onDone){
+  let timer = null;
+  const start = () => { timer = setTimeout(()=>{ if(confirm("삭제할까?")) onDone(); }, 2000); };
+  const cancel = () => { if(timer) clearTimeout(timer); timer = null; };
+  el.addEventListener("touchstart", start, {passive:true});
+  el.addEventListener("touchend", cancel);
+  el.addEventListener("touchcancel", cancel);
+  el.addEventListener("mousedown", start);
+  el.addEventListener("mouseup", cancel);
+  el.addEventListener("mouseleave", cancel);
+}
+
+/* menu + reset */
+function toggleMenu(){
+  const m = document.getElementById("menu");
+  m.style.display = (m.style.display==="block") ? "none" : "block";
+}
+function hideMenu(){ document.getElementById("menu").style.display = "none"; }
+function askReset(){ hideMenu(); document.getElementById("resetConfirm").style.display="block"; }
+function hideResetUI(){ document.getElementById("resetConfirm").style.display="none"; }
+function confirmReset(){
+  const c = chars.find(x => x.id === currentId);
+  if(!c) return;
+  chats[c.name] = [];
+  persist();
+  loadChat();
+  hideResetUI();
+}
+function saveChatSnapshot(){
+  hideMenu();
+  alert("이 버전은 자동 저장이 기본이야! (저장 목록 UI는 다음 버전에서)");
+}
+
+/* init */
+renderList();
+</script>
+</body>
+</html>
