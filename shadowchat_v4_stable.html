@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>ShadowChat V4</title>
+  <style>
+    :root{
+      --bg:#0f0f17;
+      --panel:#161624;
+      --panel2:#1d1d2e;
+      --line:#222;
+      --me:#4a6cff;
+      --ai:#26263a;
+      --btn:#2c2c44;
+      --muted:rgba(255,255,255,.65);
+      --muted2:rgba(255,255,255,.45);
+      --danger:#ff4a4a;
+      --ok:#3bd671;
+    }
+    *{ box-sizing:border-box; }
+    html, body{ height:100%; margin:0; background:var(--bg); color:#fff; font-family:-apple-system,BlinkMacSystemFont,Arial; }
+    body{ overscroll-behavior:none; }
+
+    /* iOS input zoom prevention */
+    input, textarea{ font-size:16px; }
+
+    /* Pages */
+    .page{ display:none; height:100vh; overflow:auto; -webkit-overflow-scrolling:touch; padding-bottom:92px; }
+    .page.active{ display:block; }
+
+    /* Top bar */
+    .top{
+      height:52px;
+      padding-top: env(safe-area-inset-top);
+      background:var(--panel);
+      position:sticky; top:0; z-index:30;
+      display:flex; align-items:center; justify-content:center;
+      font-weight:700;
+    }
+    .top .left, .top .right{
+      position:absolute; top:0;
+      height:52px; display:flex; align-items:center;
+      padding-top: env(safe-area-inset-top);
+    }
+    .top .left{ left:10px; }
+    .top .right{ right:10px; }
+    .iconBtn{
+      background:transparent;
+      border:1px solid #333;
+      color:#fff;
+      border-radius:10px;
+      padding:6px 10px;
+      cursor:pointer;
+    }
+
+    /* Inputs/buttons */
+    button{ background:var(--btn); color:#fff; border:none; border-radius:10px; padding:10px 14px; cursor:pointer; }
+    .fullBtn{ width:calc(100% - 28px); margin:10px 14px; }
+    .pillBtn{ padding:8px 12px; border-radius:999px; border:1px solid #3a3a55; background:transparent; }
+    .search, input, textarea{
+      width:calc(100% - 28px);
+      margin:10px 14px;
+      padding:10px;
+      border:none;
+      border-radius:10px;
+      background:#0b0b12;
+      color:#fff;
+    }
+    .label{ margin:8px 14px 0; color:var(--muted2); font-size:12px; }
+    .hint{ margin:0 14px 8px; color:var(--muted2); font-size:12px; line-height:1.35; }
+
+    /* List rows */
+    .row{
+      display:flex; align-items:center; gap:12px;
+      padding:14px;
+      border-bottom:1px solid var(--line);
+      cursor:pointer;
+    }
+    .row img{
+      width:46px; height:46px;
+      border-radius:50%;
+      object-fit:cover;
+      background:#333;
+      flex:0 0 auto;
+    }
+    .row .text{ display:flex; flex-direction:column; min-width:0; flex:1; }
+    .row .text .title{ font-weight:700; }
+    .row .text .sub{ font-size:12px; color:var(--muted2); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    /* Cards */
+    .cardBtn{
+      width:calc(100% - 28px);
+      margin:10px 14px;
+      padding:14px;
+      text-align:left;
+      background:#12121f;
+      border:1px solid #2a2a40;
+      border-radius:12px;
+      cursor:pointer;
+    }
+    .cardBtn small{ display:block; color:var(--muted2); margin-top:6px; }
+
+    /* Profile preview */
+    #charProfilePreview{ width:72px; height:72px; border-radius:50%; object-fit:cover; background:#333; margin:6px 14px; display:block; }
+    #profileAvatarPreview{ width:72px; height:72px; border-radius:50%; object-fit:cover; background:#333; margin:6px 14px; display:block; }
+
+    /* Chat */
+    #messages{ padding:14px; display:flex; flex-direction:column; gap:8px; }
+    .msg{
+      max-width:66%;
+      padding:8px 12px;
+      border-radius:14px;
+      white-space:pre-wrap;
+      word-break:break-word;
+      font-size:15px;
+      -webkit-touch-callout:none;
+      -webkit-user-select:none;
+      user-select:none;
+      touch-action:manipulation;
+    }
+    .msg.user{ align-self:flex-end; background:var(--me); }
+    .msg.ai{ align-self:flex-start; background:var(--ai); }
+    .actionSpan{ font-style:italic; opacity:.65; }
+
+    /* Typing bubble */
+    .typing{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+    .dots{
+      display:inline-flex;
+      gap:4px;
+      margin-left:2px;
+    }
+    .dot{
+      width:6px; height:6px; border-radius:50%;
+      background:rgba(255,255,255,.6);
+      animation: bounce 1s infinite ease-in-out;
+    }
+    .dot:nth-child(2){ animation-delay: .15s; }
+    .dot:nth-child(3){ animation-delay: .3s; }
+    @keyframes bounce{
+      0%, 80%, 100%{ transform: translateY(0); opacity:.55; }
+      40%{ transform: translateY(-4px); opacity:1; }
+    }
+
+    /* Bottom input bar */
+    .bottomBar{
+      position:fixed; left:0; right:0; bottom:0;
+      padding:10px 10px calc(10px + env(safe-area-inset-bottom));
+      background:var(--panel);
+      display:flex; gap:8px; z-index:40;
+    }
+    .bottomBar input{ margin:0; flex:1; width:auto; }
+    .sendBtn{ background:var(--me); }
+
+    /* Menu */
+    #menu{
+      position:fixed; right:12px; top:60px;
+      background:var(--panel2);
+      border:1px solid #333;
+      border-radius:10px;
+      padding:10px;
+      display:none;
+      z-index:60;
+    }
+    #menu button{ width:190px; margin:5px 0; }
+
+    /* Reset confirm */
+    #resetConfirm{ position:fixed; left:50%; bottom:96px; transform:translateX(-50%); display:none; z-index:65; }
+    #resetConfirm button{ background:var(--danger); }
+
+    /* Action sheet (edit/delete) */
+    #sheetBackdrop{ position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; z-index:80; }
+    #sheet{
+      position:fixed; left:50%; bottom:0; transform:translateX(-50%);
+      width:100%; max-width:520px;
+      background:var(--panel2);
+      border-top-left-radius:14px; border-top-right-radius:14px;
+      padding:12px;
+      display:none;
+      z-index:81;
+    }
+    #sheet .title{ color:var(--muted); font-size:12px; margin:6px 6px 10px; }
+    #sheet button{ width:100%; margin:6px 0; }
+    #sheet .danger{ background:var(--danger); }
+    #sheet .ghost{ background:#2a2a3f; }
+
+    /* Slider */
+    .sliderRow{ padding:10px 14px; }
+    .sliderRow input[type="range"]{ width:100%; margin:10px 0 0; }
+    .sliderMeta{ display:flex; justify-content:space-between; color:var(--muted2); font-size:12px; }
+
+    /* Small right-side label in convo list */
+    .rightTag{ font-size:12px; color:var(--muted2); }
+
+    /* Toast */
+    #toast{
+      position:fixed; left:50%; bottom:110px; transform:translateX(-50%);
+      background:rgba(0,0,0,.75);
+      padding:10px 12px;
+      border-radius:12px;
+      font-size:13px;
+      display:none;
+      z-index:90;
+    }
+  </style>
+</head>
+<body>
+
+<!-- CHAR LIST -->
+<section id="page_chars" class="page active">
+  <div class="top">
+    <div class="left"><button class="iconBtn" onclick="goProfiles()">👤</button></div>
+    <div>ShadowChat</div>
+    <div class="right"><button class="iconBtn" onclick="goCreateChar()">＋</button></div>
+  </div>
+
+  <p class="hint" id="activeProfileHint"></p>
+  <input id="charSearch" class="search" placeholder="캐릭터 검색" oninput="renderCharList()" />
+  <button class="fullBtn" id="fallbackCreateBtn" onclick="goCreateChar()">+ 캐릭터 만들기</button>
+  <div id="charList"></div>
+</section>
+
+<!-- PROFILES -->
+<section id="page_profiles" class="page">
+  <div class="top">
+    <div class="left"><button class="iconBtn" onclick="goChars()">←</button></div>
+    <div>사용자 프로필</div>
+    <div class="right"></div>
+  </div>
+
+  <p class="hint">프로필마다 <b>닉네임</b>을 설정할 수 있어. (캐릭터가 너를 닉네임으로 불러!)</p>
+  <button class="fullBtn" onclick="createProfile()">+ 새 프로필 만들기</button>
+  <div id="profilesList"></div>
+</section>
+
+<!-- CREATE CHARACTER -->
+<section id="page_create_char" class="page">
+  <div class="top">
+    <div class="left"><button class="iconBtn" onclick="goChars()">←</button></div>
+    <div>캐릭터 제작</div>
+    <div class="right"></div>
+  </div>
+
+  <p class="hint">캐릭터는 최대 <b>200명</b>까지 만들 수 있어!</p>
+  <input id="charName" placeholder="캐릭터 이름" />
+
+  <div class="label">프로필</div>
+  <img id="charProfilePreview" alt="character profile" />
+  <button class="fullBtn" onclick="document.getElementById('charProfileUpload').click()">갤러리 업로드</button>
+  <input id="charProfileUpload" type="file" accept="image/*" style="display:none" onchange="onCharProfilePicked(event)" />
+
+  <button class="fullBtn" onclick="goAIGen()">AI 이미지 생성</button>
+
+  <button class="cardBtn" onclick="openText('world')">🌍 세계관 <small id="worldPreview">아직 없음</small></button>
+  <button class="cardBtn" onclick="openText('person')">🎭 캐릭터 성격 <small id="personPreview">아직 없음</small></button>
+  <button class="cardBtn" onclick="goIntro()">💬 인트로 대화 <small id="introPreview">말풍선 여러 개로 만들 수 있어</small></button>
+
+  <div class="sliderRow">
+    <div class="label" style="margin:0;">수위(분위기) 조절</div>
+    <div class="hint" style="margin:6px 0 0;">1=가볍게 / 10=더 진하고 어두운 분위기 (안전한 범위에서만)</div>
+    <input id="levelRange" type="range" min="1" max="10" value="3" oninput="updateLevelLabel()" />
+    <div class="sliderMeta">
+      <span>1</span>
+      <span id="levelLabel">현재: 3</span>
+      <span>10</span>
+    </div>
+  </div>
+
+  <button class="fullBtn" onclick="saveCharacter()">캐릭터 저장</button>
+  <button class="fullBtn" onclick="tempSaveChar()">임시 저장</button>
+</section>
+
+<!-- AI IMAGE GENERATOR (procedural) -->
+<section id="page_ai_gen" class="page">
+  <div class="top">
+    <div class="left"><button class="iconBtn" onclick="goCreateChar()">←</button></div>
+    <div>AI 이미지 생성</div>
+    <div class="right"></div>
+  </div>
+
+  <p class="hint">무료 버전이라 “진짜 AI 서버” 대신, <b>프롬프트(설명)</b>로 분위기에 맞춘 <b>프로필 아바타</b>를 자동 생성해줘! (나중에 원하면 갤러리 업로드로 바꿔도 됨)</p>
+  <input id="aiPrompt" placeholder="예: 어두운 분위기, 붉은 눈, 검은 머리, 교복" />
+  <div class="label">미리보기</div>
+  <canvas id="avatarCanvas" width="256" height="256" style="margin:10px 14px;border-radius:16px;background:#0b0b12;width:calc(100% - 28px);height:auto;"></canvas>
+  <button class="fullBtn" onclick="generateAvatar()">생성하기</button>
+  <button class="fullBtn" style="background:var(--ok);" onclick="useAvatar()">이 이미지 사용</button>
+</section>
+
+<!-- TEXT EDIT -->
+<section id="page_text" class="page">
+  <div class="top">
+    <div class="left"><button class="iconBtn" onclick="backFromText()">←</button></div>
+    <div id="textTitle">입력</div>
+    <div class="right"></div>
+  </div>
+
+  <p class="hint" id="textHint"></p>
+  <textarea id="textArea" rows="10"></textarea>
+  <button class="fullBtn" onclick="saveText()">저장</button>
+</section>
+
+<!-- INTRO EDITOR -->
+<section id="page_intro" class="page">
+  <div class="top">
+    <div class="left"><button class="iconBtn" onclick="goCreateChar()">←</button></div>
+    <div>인트로 대화</div>
+    <div class="right"></div>
+  </div>
+
+  <p class="hint">▶ 누를 때마다 말풍선 1개 추가돼. 말풍선을 꾹 누르면 <b>수정/삭제</b> 가능!</p>
+  <div id="introMsgs" style="padding:14px;display:flex;flex-direction:column;gap:8px;"></div>
+
+  <div class="bottomBar">
+    <input id="introInput" placeholder="인트로 말풍선 입력" />
+    <button class="sendBtn" onclick="addIntro()">▶</button>
+  </div>
+</section>
+
+<!-- CONVERSATION SLOTS -->
+<section id="page_convos" class="page">
+  <div class="top">
+    <div class="left"><button class="iconBtn" onclick="goChars()">←</button></div>
+    <div id="convoTitle">대화</div>
+    <div class="right"><button class="iconBtn" onclick="newConvo()">＋</button></div>
+  </div>
+
+  <p class="hint">같은 캐릭터로 <b>여러 대화</b>를 만들 수 있어. (AU/상황별로 저장 가능)</p>
+  <div id="convoList"></div>
+</section>
+
+<!-- CHAT -->
+<section id="page_chat" class="page">
+  <div class="top">
+    <div class="left"><button class="iconBtn" onclick="goConvos()">←</button></div>
+    <div id="chatTitle">대화</div>
+    <div class="right"><button class="iconBtn" onclick="toggleMenu()">☰</button></div>
+  </div>
+
+  <div id="menu">
+    <button onclick="askReset()">대화 초기화</button>
+    <button onclick="renameConvo()">대화 이름 바꾸기</button>
+    <button onclick="goProfiles()">사용자 프로필</button>
+  </div>
+
+  <div id="messages"></div>
+
+  <div id="resetConfirm">
+    <button onclick="confirmReset()">대화 초기화</button>
+  </div>
+
+  <div class="bottomBar">
+    <input id="chatInput" placeholder="메세지 입력" />
+    <button class="sendBtn" onclick="sendMsg()">▶</button>
+  </div>
+</section>
+
+<!-- ACTION SHEET -->
+<div id="sheetBackdrop" onclick="closeSheet()"></div>
+<div id="sheet" role="dialog" aria-modal="true">
+  <div class="title" id="sheetTitle">말풍선</div>
+  <button class="ghost" onclick="editSelected()">메시지 수정</button>
+  <button class="danger" onclick="deleteSelected()">메시지 삭제</button>
+  <button onclick="closeSheet()">취소</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ===========================
+   Storage Model (V4)
+   - chars: [{id,name,img,world,person,intro:[{id,text}], level}]
+   - convos: { charId: [{id,name,updatedAt}] }
+   - chats: { convoId: [{id,type,text,profileId,ts}] }
+   - profiles: [{id,name,nick,img}]
+   =========================== */
+
+const STORAGE_KEYS = {
+  chars: "sc_v4_chars",
+  convos: "sc_v4_convos",
+  chats: "sc_v4_chats",
+  tempChar: "sc_v4_temp_char",
+  profiles: "sc_v4_profiles",
+  activeProfile: "sc_v4_active_profile"
+};
+
+const MAX_CHARS = 200;
+
+let chars = loadJSON(STORAGE_KEYS.chars, []);
+let convos = loadJSON(STORAGE_KEYS.convos, {});
+let chats = loadJSON(STORAGE_KEYS.chats, {});
+let tempChar = loadJSON(STORAGE_KEYS.tempChar, {});
+let profiles = loadJSON(STORAGE_KEYS.profiles, []);
+let activeProfileId = localStorage.getItem(STORAGE_KEYS.activeProfile) || "";
+
+/* Current navigation context */
+let currentCharId = null;
+let currentConvoId = null;
+
+/* Action sheet selection */
+let selected = { scope:null, id:null }; // scope: "intro"|"chat"
+
+/* ---------------- helpers ---------------- */
+function uid(){
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+}
+function loadJSON(key, fallback){
+  try{
+    const raw = localStorage.getItem(key);
+    if(!raw) return fallback;
+    return JSON.parse(raw);
+  }catch(e){
+    return fallback;
+  }
+}
+function saveAll(){
+  localStorage.setItem(STORAGE_KEYS.chars, JSON.stringify(chars));
+  localStorage.setItem(STORAGE_KEYS.convos, JSON.stringify(convos));
+  localStorage.setItem(STORAGE_KEYS.chats, JSON.stringify(chats));
+  localStorage.setItem(STORAGE_KEYS.tempChar, JSON.stringify(tempChar));
+  localStorage.setItem(STORAGE_KEYS.profiles, JSON.stringify(profiles));
+  localStorage.setItem(STORAGE_KEYS.activeProfile, activeProfileId);
+}
+function cut(s, n){
+  s = String(s || "");
+  return s.length > n ? s.slice(0,n) + "…" : s;
+}
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.display = "block";
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=> t.style.display="none", 1400);
+}
+function show(pageId){
+  const pages = ["page_chars","page_profiles","page_create_char","page_ai_gen","page_text","page_intro","page_convos","page_chat"];
+  pages.forEach(id => document.getElementById(id).classList.remove("active"));
+  document.getElementById(pageId).classList.add("active");
+  hideMenu();
+  hideReset();
+  closeSheet(true);
+  // keep scroll top on entry except chat (we scroll bottom there)
+  if(pageId !== "page_chat") document.getElementById(pageId).scrollTop = 0;
+}
+
+/* ---------------- profiles ---------------- */
+function ensureDefaultProfile(){
+  if(!Array.isArray(profiles)) profiles = [];
+  if(profiles.length === 0){
+    const id = uid();
+    profiles.push({ id, name:"나", nick:"나", img:"" });
+    activeProfileId = id;
+    saveAll();
+  }
+  if(!activeProfileId || !profiles.some(p=>p.id===activeProfileId)){
+    activeProfileId = profiles[0].id;
+    saveAll();
+  }
+}
+ensureDefaultProfile();
+
+function activeProfile(){
+  return profiles.find(p=>p.id===activeProfileId) || profiles[0];
+}
+function updateActiveProfileHint(){
+  const p = activeProfile();
+  document.getElementById("activeProfileHint").textContent =
+    `현재 사용자: ${p.name} / 닉네임: ${p.nick}  (👤에서 변경)`;
+}
+updateActiveProfileHint();
+
+function goProfiles(){
+  renderProfiles();
+  show("page_profiles");
+}
+function goChars(){
+  currentCharId = null;
+  currentConvoId = null;
+  updateActiveProfileHint();
+  renderCharList();
+  show("page_chars");
+}
+
+function renderProfiles(){
+  const box = document.getElementById("profilesList");
+  box.innerHTML = "";
+  profiles.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.cursor = "default";
+
+    const img = document.createElement("img");
+    img.src = p.img || "";
+
+    const text = document.createElement("div");
+    text.className = "text";
+    const title = document.createElement("div");
+    title.className = "title";
+    title.textContent = p.name + (p.id === activeProfileId ? "  (선택됨)" : "");
+    const sub = document.createElement("div");
+    sub.className = "sub";
+    sub.textContent = "닉네임: " + (p.nick || p.name);
+    text.appendChild(title);
+    text.appendChild(sub);
+
+    const actions = document.createElement("div");
+    actions.style.display = "flex";
+    actions.style.gap = "8px";
+
+    const selectBtn = document.createElement("button");
+    selectBtn.textContent = (p.id === activeProfileId) ? "사용 중" : "선택";
+    selectBtn.style.background = (p.id === activeProfileId) ? "#2a2a3f" : "var(--me)";
+    selectBtn.onclick = () => {
+      activeProfileId = p.id;
+      saveAll();
+      renderProfiles();
+      updateActiveProfileHint();
+      toast("프로필 변경됨");
+    };
+
+    const editBtn = document.createElement("button");
+    editBtn.textContent = "수정";
+    editBtn.onclick = () => editProfile(p.id);
+
+    actions.appendChild(selectBtn);
+    actions.appendChild(editBtn);
+
+    row.appendChild(img);
+    row.appendChild(text);
+    row.appendChild(actions);
+    box.appendChild(row);
+  });
+}
+
+function createProfile(){
+  const name = (prompt("프로필 이름(예: 모아)") || "").trim();
+  if(!name) return;
+  const nick = (prompt("닉네임(캐릭터가 부를 이름, 예: 여우)") || "").trim() || name;
+  const id = uid();
+  profiles.push({ id, name, nick, img:"" });
+  activeProfileId = id;
+  saveAll();
+  const want = confirm("프로필 사진도 추가할까? (선택)");
+  if(want){
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = (e) => {
+      const f = e.target.files && e.target.files[0];
+      if(!f){ renderProfiles(); return; }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const pr = profiles.find(x=>x.id===id);
+        if(pr) pr.img = ev.target.result;
+        saveAll();
+        renderProfiles();
+      };
+      reader.readAsDataURL(f);
+    };
+    inp.click();
+  }else{
+    renderProfiles();
+  }
+  updateActiveProfileHint();
+}
+
+function editProfile(profileId){
+  const p = profiles.find(x=>x.id===profileId);
+  if(!p) return;
+  const name = prompt("프로필 이름 수정", p.name);
+  if(name === null) return;
+  const nick = prompt("닉네임 수정", p.nick || p.name);
+  if(nick === null) return;
+  p.name = name.trim() || p.name;
+  p.nick = nick.trim() || p.nick || p.name;
+
+  const wantImg = confirm("프로필 사진도 바꿀까? (확인=바꾸기 / 취소=그대로)");
+  if(wantImg){
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = (e) => {
+      const f = e.target.files && e.target.files[0];
+      if(!f){ saveAll(); renderProfiles(); updateActiveProfileHint(); return; }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        p.img = ev.target.result;
+        saveAll();
+        renderProfiles();
+        updateActiveProfileHint();
+      };
+      reader.readAsDataURL(f);
+    };
+    inp.click();
+  }else{
+    saveAll();
+    renderProfiles();
+    updateActiveProfileHint();
+  }
+}
+
+/* ---------------- character list ---------------- */
+function renderCharList(){
+  const q = (document.getElementById("charSearch").value || "").toLowerCase();
+  const box = document.getElementById("charList");
+  box.innerHTML = "";
+
+  chars
+    .filter(c => (c.name||"").toLowerCase().includes(q))
+    .forEach(c => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.onclick = () => openConvos(c.id);
+
+      const img = document.createElement("img");
+      img.src = c.img || "";
+
+      const text = document.createElement("div");
+      text.className = "text";
+      const title = document.createElement("div");
+      title.className = "title";
+      title.textContent = c.name;
+
+      // last message preview across most recently updated convo
+      const list = (convos[c.id] || []);
+      let lastText = "대화 없음";
+      if(list.length){
+        const latest = list.slice().sort((a,b)=> (b.updatedAt||0)-(a.updatedAt||0))[0];
+        const msgs = chats[latest.id] || [];
+        const last = msgs.slice(-1)[0];
+        lastText = last ? last.text : "대화 없음";
+      }
+      const sub = document.createElement("div");
+      sub.className = "sub";
+      sub.textContent = cut(lastText, 60);
+
+      text.appendChild(title);
+      text.appendChild(sub);
+
+      row.appendChild(img);
+      row.appendChild(text);
+      box.appendChild(row);
+    });
+}
+renderCharList();
+
+/* ---------------- create character ---------------- */
+let editingKey = null; // "world"|"person"
+
+function goCreateChar(){
+  try{
+    if(chars.length >= MAX_CHARS){
+      toast(`캐릭터는 최대 ${MAX_CHARS}명까지 가능해!`);
+      return;
+    }
+    tempChar = (tempChar && typeof tempChar === "object") ? tempChar : {};
+    tempChar.name = tempChar.name || "";
+    tempChar.img = tempChar.img || "";
+    tempChar.world = tempChar.world || "";
+    tempChar.person = tempChar.person || "";
+    tempChar.level = Number.isFinite(tempChar.level) ? tempChar.level : 3;
+    tempChar.intro = normalizeIntro(tempChar.intro || []);
+    syncCreateCharUI();
+    show("page_create_char");
+    toast("캐릭터 제작 화면");
+  }catch(err){
+    alert("캐릭터 제작 화면으로 이동 중 오류가 났어: " + err.message);
+  }
+}
+function syncCreateCharUI(){
+  document.getElementById("charName").value = tempChar.name || "";
+  document.getElementById("charProfilePreview").src = tempChar.img || "";
+  document.getElementById("worldPreview").textContent = tempChar.world ? cut(tempChar.world, 48) : "아직 없음";
+  document.getElementById("personPreview").textContent = tempChar.person ? cut(tempChar.person, 48) : "아직 없음";
+  document.getElementById("introPreview").textContent = (tempChar.intro && tempChar.intro.length)
+    ? cut(tempChar.intro.slice(0,2).map(x=>x.text).join(" / "), 48)
+    : "말풍선 여러 개로 만들 수 있어";
+  document.getElementById("levelRange").value = tempChar.level || 3;
+  updateLevelLabel();
+}
+function updateLevelLabel(){
+  const v = Number(document.getElementById("levelRange").value);
+  document.getElementById("levelLabel").textContent = "현재: " + v;
+}
+
+function onCharProfilePicked(e){
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    tempChar.img = ev.target.result;
+    saveAll();
+    syncCreateCharUI();
+  };
+  reader.readAsDataURL(file);
+}
+
+function normalizeIntro(arr){
+  if(!Array.isArray(arr)) arr = [];
+  return arr.map(x => {
+    if(typeof x === "string") return { id: uid(), text: x };
+    if(x && typeof x === "object" && x.id && typeof x.text === "string") return x;
+    return { id: uid(), text: String(x||"") };
+  });
+}
+
+function openText(key){
+  editingKey = key;
+  document.getElementById("textTitle").textContent = (key==="world") ? "세계관 입력" : "캐릭터 성격";
+  document.getElementById("textHint").textContent =
+    (key==="world")
+      ? "이 캐릭터가 사는 세계/규칙/배경을 적어줘. (캐릭터가 기억함)"
+      : "말투/성격/버릇/금지 행동 등을 적어줘. (성격 기반 대화에 사용)";
+  document.getElementById("textArea").value = tempChar[key] || "";
+  show("page_text");
+}
+function backFromText(){
+  show("page_create_char");
+  syncCreateCharUI();
+}
+function saveText(){
+  const val = document.getElementById("textArea").value || "";
+  if(editingKey) tempChar[editingKey] = val;
+  saveAll();
+  show("page_create_char");
+  syncCreateCharUI();
+}
+
+function goIntro(){
+  tempChar.intro = normalizeIntro(tempChar.intro || []);
+  renderIntro();
+  show("page_intro");
+}
+function renderIntro(){
+  tempChar.intro = normalizeIntro(tempChar.intro || []);
+  const box = document.getElementById("introMsgs");
+  box.innerHTML = "";
+  tempChar.intro.forEach(it => {
+    const div = document.createElement("div");
+    div.className = "msg ai";
+    div.dataset.mid = it.id;
+    setMsgContent(div, it.text);
+    attachHold(div, "intro", it.id);
+    box.appendChild(div);
+  });
+}
+function addIntro(){
+  const inp = document.getElementById("introInput");
+  const t = (inp.value || "").trim();
+  if(!t) return;
+  tempChar.intro = normalizeIntro(tempChar.intro || []);
+  tempChar.intro.push({ id: uid(), text: t });
+  inp.value = "";
+  saveAll();
+  renderIntro();
+}
+
+function tempSaveChar(){
+  tempChar.name = (document.getElementById("charName").value || "").trim();
+  tempChar.level = Number(document.getElementById("levelRange").value) || 3;
+  saveAll();
+  toast("임시 저장됨");
+}
+
+function saveCharacter(){
+  if(chars.length >= MAX_CHARS){
+    toast(`캐릭터는 최대 ${MAX_CHARS}명까지 가능해!`);
+    return;
+  }
+  const name = (document.getElementById("charName").value || "").trim();
+  if(!name){ toast("캐릭터 이름이 필요해!"); return; }
+
+  tempChar.name = name;
+  tempChar.level = Number(document.getElementById("levelRange").value) || 3;
+  tempChar.intro = normalizeIntro(tempChar.intro || []);
+
+  const c = {
+    id: uid(),
+    name: tempChar.name,
+    img: tempChar.img || "",
+    world: tempChar.world || "",
+    person: tempChar.person || "",
+    intro: tempChar.intro || [],
+    level: tempChar.level
+  };
+
+  chars.push(c);
+
+  // create default convo slot
+  if(!convos[c.id]) convos[c.id] = [];
+  const convoId = uid();
+  convos[c.id].push({ id: convoId, name: "대화 1", updatedAt: Date.now() });
+  chats[convoId] = []; // empty; intro is shown when chat empty
+
+  tempChar = {};
+  saveAll();
+  toast("캐릭터 저장 완료!");
+  goChars();
+}
+
+/* ---------------- AI image gen (procedural avatar) ---------------- */
+let lastAvatarDataUrl = "";
+function goAIGen(){
+  show("page_ai_gen");
+  // seed render once
+  setTimeout(()=> generateAvatar(), 0);
+}
+function generateAvatar(){
+  const prompt = (document.getElementById("aiPrompt").value || "").trim().toLowerCase();
+  const canvas = document.getElementById("avatarCanvas");
+  const ctx = canvas.getContext("2d");
+
+  // deterministic-ish seed from prompt
+  let seed = 2166136261;
+  for(let i=0;i<prompt.length;i++){
+    seed ^= prompt.charCodeAt(i);
+    seed = Math.imul(seed, 16777619);
+  }
+  function rand(){
+    seed += 0x6D2B79F5;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  // palette based on keywords
+  const dark = prompt.includes("어두") || prompt.includes("다크") || prompt.includes("검");
+  const redEyes = prompt.includes("붉") || prompt.includes("레드") || prompt.includes("red");
+  const blue = prompt.includes("파랑") || prompt.includes("블루") || prompt.includes("blue");
+  const hairLong = prompt.includes("긴") || prompt.includes("롱");
+  const uniform = prompt.includes("교복") || prompt.includes("uniform");
+
+  // background gradient
+  const bg1 = dark ? "#0b0b12" : "#151525";
+  const bg2 = dark ? "#1a1a2d" : "#2a2a55";
+  const grad = ctx.createLinearGradient(0,0,256,256);
+  grad.addColorStop(0, bg1);
+  grad.addColorStop(1, bg2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,256,256);
+
+  // soft glow
+  ctx.beginPath();
+  ctx.fillStyle = "rgba(255,255,255,0.06)";
+  ctx.arc(200,70,60,0,Math.PI*2);
+  ctx.fill();
+
+  // head
+  const skin = ["#f3d7c7","#e9c2ad","#d9ad95","#f0cdb7"][Math.floor(rand()*4)];
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.arc(128,120,70,0,Math.PI*2);
+  ctx.fill();
+
+  // hair
+  const hairBase = dark ? "#161616" : "#2b2b2b";
+  const hairTint = blue ? "#1d2b55" : (dark ? "#151522" : "#3a2f2a");
+  ctx.fillStyle = mix(hairBase, hairTint, 0.35 + rand()*0.25);
+  ctx.beginPath();
+  ctx.arc(128,105,78,Math.PI,Math.PI*2);
+  ctx.closePath();
+  ctx.fill();
+
+  // bangs
+  ctx.beginPath();
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  const bangCount = 6 + Math.floor(rand()*4);
+  for(let i=0;i<bangCount;i++){
+    const x = 70 + i*(116/(bangCount-1));
+    const w = 18 + rand()*10;
+    const h = 40 + rand()*30;
+    ctx.roundRect(x,70,w,h,10);
+  }
+  ctx.fill();
+
+  // long hair sides
+  if(hairLong){
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.roundRect(50,95,35,120,18);
+    ctx.roundRect(171,95,35,120,18);
+    ctx.fill();
+  }
+
+  // eyes
+  const eyeColor = redEyes ? "#ff4a4a" : (blue ? "#6bb2ff" : "#d6d6ff");
+  const eyeY = 120;
+  const eyeX1 = 98, eyeX2 = 158;
+  drawEye(ctx, eyeX1, eyeY, eyeColor, rand);
+  drawEye(ctx, eyeX2, eyeY, eyeColor, rand);
+
+  // mouth
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(128,158,16,0.15*Math.PI,0.85*Math.PI);
+  ctx.stroke();
+
+  // clothes
+  if(uniform){
+    ctx.fillStyle = "#1b1b2a";
+    ctx.beginPath();
+    ctx.moveTo(60,256);
+    ctx.lineTo(96,185);
+    ctx.lineTo(160,185);
+    ctx.lineTo(196,256);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#2a2a40";
+    ctx.beginPath();
+    ctx.moveTo(128,185);
+    ctx.lineTo(118,256);
+    ctx.lineTo(138,256);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#c04b4b";
+    ctx.beginPath();
+    ctx.moveTo(128,185);
+    ctx.lineTo(112,205);
+    ctx.lineTo(144,205);
+    ctx.closePath();
+    ctx.fill();
+  }else{
+    ctx.fillStyle = "#1f1f34";
+    ctx.beginPath();
+    ctx.moveTo(60,256);
+    ctx.quadraticCurveTo(128,190,196,256);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // border vignette
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 6;
+  ctx.roundRect(10,10,236,236,22);
+  ctx.stroke();
+
+  lastAvatarDataUrl = canvas.toDataURL("image/png");
+}
+function useAvatar(){
+  if(!lastAvatarDataUrl){
+    toast("먼저 생성하기를 눌러줘!");
+    return;
+  }
+  tempChar.img = lastAvatarDataUrl;
+  saveAll();
+  syncCreateCharUI();
+  toast("프로필에 적용됨!");
+  show("page_create_char");
+}
+
+/* Helper drawing */
+function mix(a,b,t){
+  function hexToRgb(h){
+    const x = h.replace("#","");
+    return { r:parseInt(x.slice(0,2),16), g:parseInt(x.slice(2,4),16), b:parseInt(x.slice(4,6),16) };
+  }
+  const A = hexToRgb(a), B = hexToRgb(b);
+  const r = Math.round(A.r + (B.r-A.r)*t);
+  const g = Math.round(A.g + (B.g-A.g)*t);
+  const bb = Math.round(A.b + (B.b-A.b)*t);
+  return `rgb(${r},${g},${bb})`;
+}
+function drawEye(ctx, x, y, color, rand){
+  // white
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.beginPath();
+  ctx.ellipse(x,y,22,14,0,0,Math.PI*2);
+  ctx.fill();
+  // iris
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x,y,9,0,Math.PI*2);
+  ctx.fill();
+  // pupil
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.beginPath();
+  ctx.arc(x,y,4,0,Math.PI*2);
+  ctx.fill();
+  // shine
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.beginPath();
+  ctx.arc(x-3,y-3,2.2,0,Math.PI*2);
+  ctx.fill();
+  // top lid
+  ctx.strokeStyle = "rgba(0,0,0,0.45)";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(x,y-2,22,14,0,Math.PI,Math.PI*2);
+  ctx.stroke();
+}
+
+/* polyfill for roundRect (older iOS) */
+if(!CanvasRenderingContext2D.prototype.roundRect){
+  CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+    r = Math.min(r, w/2, h/2);
+    this.beginPath();
+    this.moveTo(x+r, y);
+    this.arcTo(x+w, y, x+w, y+h, r);
+    this.arcTo(x+w, y+h, x, y+h, r);
+    this.arcTo(x, y+h, x, y, r);
+    this.arcTo(x, y, x+w, y, r);
+    this.closePath();
+    return this;
+  };
+}
+
+/* ---------------- convos ---------------- */
+function openConvos(charId){
+  currentCharId = charId;
+  currentConvoId = null;
+  const c = chars.find(x=>x.id===charId);
+  document.getElementById("convoTitle").textContent = c ? c.name : "대화";
+  renderConvoList();
+  show("page_convos");
+}
+function goConvos(){
+  if(!currentCharId) return goChars();
+  openConvos(currentCharId);
+}
+function renderConvoList(){
+  const box = document.getElementById("convoList");
+  box.innerHTML = "";
+  const list = convos[currentCharId] || [];
+
+  if(list.length === 0){
+    // create a default convo
+    const id = uid();
+    convos[currentCharId] = [{ id, name:"대화 1", updatedAt: Date.now() }];
+    chats[id] = [];
+    saveAll();
+    return renderConvoList();
+  }
+
+  list
+    .slice()
+    .sort((a,b)=> (b.updatedAt||0)-(a.updatedAt||0))
+    .forEach((cv, idx) => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.onclick = () => openChat(cv.id);
+
+      const c = chars.find(x=>x.id===currentCharId);
+      const img = document.createElement("img");
+      img.src = c?.img || "";
+
+      const text = document.createElement("div");
+      text.className = "text";
+
+      const title = document.createElement("div");
+      title.className = "title";
+      title.textContent = cv.name || ("대화 " + (idx+1));
+
+      const sub = document.createElement("div");
+      sub.className = "sub";
+      const last = (chats[cv.id]||[]).slice(-1)[0];
+      sub.textContent = last ? cut(last.text, 60) : "대화 없음";
+
+      text.appendChild(title);
+      text.appendChild(sub);
+
+      const tag = document.createElement("div");
+      tag.className = "rightTag";
+      tag.textContent = timeAgo(cv.updatedAt || 0);
+
+      row.appendChild(img);
+      row.appendChild(text);
+      row.appendChild(tag);
+      box.appendChild(row);
+    });
+}
+function timeAgo(ts){
+  if(!ts) return "";
+  const s = Math.floor((Date.now()-ts)/1000);
+  if(s < 60) return "방금";
+  const m = Math.floor(s/60);
+  if(m < 60) return m + "분 전";
+  const h = Math.floor(m/60);
+  if(h < 24) return h + "시간 전";
+  const d = Math.floor(h/24);
+  return d + "일 전";
+}
+
+function newConvo(){
+  const name = (prompt("새 대화 이름 (예: 학교 AU)") || "").trim();
+  const list = convos[currentCharId] || [];
+  const id = uid();
+  list.push({ id, name: name || ("대화 " + (list.length+1)), updatedAt: Date.now() });
+  convos[currentCharId] = list;
+  chats[id] = [];
+  saveAll();
+  renderConvoList();
+  toast("새 대화 생성됨");
+}
+
+/* ---------------- chat ---------------- */
+function openChat(convoId){
+  currentConvoId = convoId;
+  const c = chars.find(x=>x.id===currentCharId);
+  const cv = (convos[currentCharId]||[]).find(x=>x.id===convoId);
+  document.getElementById("chatTitle").textContent = (c?c.name:"") + " · " + (cv?.name || "대화");
+  loadChat();
+  show("page_chat");
+}
+
+function loadChat(){
+  const box = document.getElementById("messages");
+  box.innerHTML = "";
+
+  const msgs = chats[currentConvoId] || [];
+  if(msgs.length === 0){
+    // show intro from char (not saved)
+    const c = chars.find(x=>x.id===currentCharId);
+    if(c && Array.isArray(c.intro)){
+      c.intro.forEach(it => addMsgToUI(it.text, "ai", null, false));
+    }
+  }
+
+  msgs.forEach(m => addMsgToUI(m.text, m.type, m.id, true));
+
+  // scroll bottom
+  setTimeout(()=> { box.scrollTop = box.scrollHeight; }, 0);
+}
+
+function addMsgToUI(text, type, msgId, bindHold){
+  const div = document.createElement("div");
+  div.className = "msg " + type;
+  const id = msgId || uid();
+  div.dataset.mid = id;
+  setMsgContent(div, text);
+  if(bindHold) attachHold(div, "chat", id);
+  document.getElementById("messages").appendChild(div);
+  return id;
+}
+
+/* Styling for *...* segments */
+function setMsgContent(div, text){
+  div.innerHTML = "";
+  splitStars(String(text||"")).forEach(p => {
+    if(p.type === "action"){
+      const sp = document.createElement("span");
+      sp.className = "actionSpan";
+      sp.textContent = p.text;
+      div.appendChild(sp);
+    }else{
+      div.appendChild(document.createTextNode(p.text));
+    }
+  });
+}
+function splitStars(s){
+  const out = [];
+  let i = 0;
+  while(i < s.length){
+    const a = s.indexOf("*", i);
+    if(a === -1){ out.push({type:"text", text:s.slice(i)}); break; }
+    const b = s.indexOf("*", a+1);
+    if(b === -1){ out.push({type:"text", text:s.slice(i)}); break; }
+    if(a > i) out.push({type:"text", text:s.slice(i,a)});
+    out.push({type:"action", text:s.slice(a, b+1)});
+    i = b+1;
+  }
+  return out.length ? out : [{type:"text", text:s}];
+}
+
+function sendMsg(){
+  const inp = document.getElementById("chatInput");
+  const t = (inp.value || "").trim();
+  if(!t) return;
+  inp.value = "";
+
+  // save user msg
+  const userMsgId = uid();
+  const p = activeProfile();
+  const msgObj = { id:userMsgId, type:"user", text:t, profileId:p.id, ts:Date.now() };
+  if(!chats[currentConvoId]) chats[currentConvoId] = [];
+  chats[currentConvoId].push(msgObj);
+
+  markConvoUpdated();
+
+  // render user msg
+  addMsgToUI(t, "user", userMsgId, true);
+
+  // typing indicator
+  const typingId = uid();
+  const typingDiv = document.createElement("div");
+  typingDiv.className = "msg ai";
+  typingDiv.dataset.mid = typingId;
+  typingDiv.innerHTML = `<span class="typing">${escapeHtml(getCharName())} 입력중<span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></span>`;
+  document.getElementById("messages").appendChild(typingDiv);
+  scrollBottom();
+
+  // build AI reply (offline, longer, less repetitive, uses nickname + persona + level)
+  const c = chars.find(x=>x.id===currentCharId);
+  const reply = buildReply(c, t, p.nick);
+
+  const delay = Math.min(2000, 900 + reply.length * 8); // ~0.9s to 2s
+  setTimeout(()=>{
+    // remove typing
+    typingDiv.remove();
+
+    const aiMsgId = uid();
+    const aiObj = { id: aiMsgId, type:"ai", text: reply, profileId:null, ts:Date.now() };
+    chats[currentConvoId].push(aiObj);
+    markConvoUpdated();
+
+    addMsgToUI(reply, "ai", aiMsgId, true);
+    scrollBottom();
+    saveAll();
+  }, delay);
+
+  saveAll();
+}
+
+function markConvoUpdated(){
+  const list = convos[currentCharId] || [];
+  const cv = list.find(x=>x.id===currentConvoId);
+  if(cv) cv.updatedAt = Date.now();
+  convos[currentCharId] = list;
+}
+
+function scrollBottom(){
+  const box = document.getElementById("messages");
+  box.scrollTop = box.scrollHeight;
+}
+
+/* story-style reply builder */
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function simpleSig(s){
+  return String(s||"").replace(/\s+/g," ").slice(0,120);
+}
+
+function buildReply(c, userText, nick){
+  const name = c?.name || "그";
+  const level = Math.max(1, Math.min(10, Number(c?.level || 3)));
+
+  const tone = (level <= 3) ? "soft" : (level <= 6) ? "tense" : "dark";
+
+  const openerSoft = [
+    `*${name}이(가) 가볍게 웃는다.*`,
+    `*${name}이(가) 고개를 기울인다.*`,
+    `*${name}이(가) 조용히 너를 본다.*`
+  ];
+  const openerTense = [
+    `*${name}이(가) 잠깐 멈춘다.*`,
+    `*${name}이(가) 눈을 가늘게 뜬다.*`,
+    `*${name}이(가) 숨을 길게 내쉰다.*`
+  ];
+  const openerDark = [
+    `*${name}이(가) 천천히 다가온다.*`,
+    `*${name}이(가) 미묘하게 웃는다.*`,
+    `*${name}이(가) 시선을 떼지 않는다.*`
+  ];
+
+  const isNoProblem = /없|괜찮|몰라|그냥/i.test(userText);
+
+  const probesSoft = isNoProblem ? [
+    `${nick}, 그럼 지금 뭐 하고 있었어?`,
+    `${nick}, 오늘 하루는 어땠어?`,
+    `${nick}, 그냥 심심해서 온 거야?`
+  ] : [
+    `${nick}, 조금 더 말해줄래?`,
+    `${nick}, 그거 무슨 뜻이야?`,
+    `${nick}, 지금 무슨 생각 하고 있어?`
+  ];
+
+  const probesTense = [
+    `${nick}, 그 말 진심이야?`,
+    `${nick}, 솔직히 말해봐.`,
+    `${nick}, 계속 말해.`
+  ];
+
+  const probesDark = [
+    `${nick}… 계속해.`,
+    `${nick}, 아직 끝난 거 아니지?`,
+    `${nick}, 더 듣고 싶어.`
+  ];
+
+  const closerSoft = [
+    `응, 계속 말해봐.`,
+    `난 듣고 있어.`,
+    `천천히 말해도 돼.`
+  ];
+  const closerTense = [
+    `그래, 계속해.`,
+    `좋아. 더 말해.`,
+    `핵심만 말해봐.`
+  ];
+  const closerDark = [
+    `…계속.`,
+    `좋아. 더.`,
+    `멈추지 마.`
+  ];
+
+  const opener = tone==="soft" ? pick(openerSoft) : tone==="tense" ? pick(openerTense) : pick(openerDark);
+  const probe = tone==="soft" ? pick(probesSoft) : tone==="tense" ? pick(probesTense) : pick(probesDark);
+  const closer = tone==="soft" ? pick(closerSoft) : tone==="tense" ? pick(closerTense) : pick(closerDark);
+
+  function compose(){
+    const parts = [opener, "", probe];
+    if(Math.random() < 0.4){
+      parts.push("", pick([
+        `${nick}, 난 네 얘기 듣는 거 싫지 않아.`,
+        `괜찮아, 편하게 말해.`,
+        `지금 분위기 나쁘지 않은데.`
+      ]));
+    }
+    parts.push("", closer);
+    return parts.join("\n");
+  }
+
+  const key = "sc_v4_last_sig_" + (currentConvoId || "x");
+  const last = localStorage.getItem(key) || "";
+
+  let out = compose();
+  for(let i=0;i<4;i++){
+    if(simpleSig(out) !== last) break;
+    out = compose();
+  }
+
+  localStorage.setItem(key, simpleSig(out));
+  return out;
+}
+
+
+function getCharName(){
+  const c = chars.find(x=>x.id===currentCharId);
+  return c?.name || "캐릭터";
+}
+
+/* ---------------- edit/delete via action sheet ---------------- */
+function attachHold(el, scope, msgId){
+  let timer = null;
+  const start = () => {
+    timer = setTimeout(()=>{
+      selected = { scope, id: msgId };
+      openSheet(scope);
+    }, 650); // long-press but usable
+  };
+  const cancel = () => { if(timer) clearTimeout(timer); timer=null; };
+
+  el.addEventListener("touchstart", start, {passive:true});
+  el.addEventListener("touchend", cancel);
+  el.addEventListener("touchcancel", cancel);
+  el.addEventListener("touchmove", cancel);
+  el.addEventListener("mousedown", start);
+  el.addEventListener("mouseup", cancel);
+  el.addEventListener("mouseleave", cancel);
+}
+
+function openSheet(scope){
+  document.getElementById("sheetTitle").textContent = (scope==="intro") ? "인트로 말풍선" : "대화 말풍선";
+  document.getElementById("sheetBackdrop").style.display = "block";
+  document.getElementById("sheet").style.display = "block";
+}
+function closeSheet(force){
+  document.getElementById("sheetBackdrop").style.display = "none";
+  document.getElementById("sheet").style.display = "none";
+  if(force) selected = { scope:null, id:null };
+}
+
+function deleteSelected(){
+  if(!selected.id) return closeSheet(true);
+  if(!confirm("삭제할까?")) return;
+
+  if(selected.scope === "intro"){
+    tempChar.intro = normalizeIntro(tempChar.intro || []);
+    const idx = tempChar.intro.findIndex(x=>x.id===selected.id);
+    if(idx >= 0) tempChar.intro.splice(idx,1);
+    saveAll();
+    renderIntro();
+  }else if(selected.scope === "chat"){
+    const arr = chats[currentConvoId] || [];
+    const i = arr.findIndex(x=>x.id===selected.id);
+    if(i >= 0) arr.splice(i,1);
+    chats[currentConvoId] = arr;
+    markConvoUpdated();
+    saveAll();
+    loadChat();
+  }
+
+  closeSheet(true);
+}
+
+function editSelected(){
+  if(!selected.id) return closeSheet(true);
+  let currentText = "";
+
+  if(selected.scope === "intro"){
+    tempChar.intro = normalizeIntro(tempChar.intro || []);
+    const obj = tempChar.intro.find(x=>x.id===selected.id);
+    currentText = obj?.text || "";
+  }else if(selected.scope === "chat"){
+    const arr = chats[currentConvoId] || [];
+    const obj = arr.find(x=>x.id===selected.id);
+    currentText = obj?.text || "";
+  }
+
+  const next = prompt("메시지 수정", currentText);
+  if(next === null) return; // cancelled
+  const newText = String(next);
+
+  if(selected.scope === "intro"){
+    const obj = tempChar.intro.find(x=>x.id===selected.id);
+    if(obj) obj.text = newText;
+    saveAll();
+    renderIntro();
+  }else if(selected.scope === "chat"){
+    const arr = chats[currentConvoId] || [];
+    const obj = arr.find(x=>x.id===selected.id);
+    if(obj) obj.text = newText;
+    chats[currentConvoId] = arr;
+    markConvoUpdated();
+    saveAll();
+    loadChat();
+  }
+
+  closeSheet(true);
+}
+
+/* ---------------- menu + reset ---------------- */
+function toggleMenu(){
+  const m = document.getElementById("menu");
+  m.style.display = (m.style.display === "block") ? "none" : "block";
+}
+function hideMenu(){ document.getElementById("menu").style.display = "none"; }
+
+function askReset(){
+  hideMenu();
+  document.getElementById("resetConfirm").style.display = "block";
+}
+function hideReset(){ document.getElementById("resetConfirm").style.display = "none"; }
+
+function confirmReset(){
+  if(!currentConvoId) return;
+  chats[currentConvoId] = [];
+  markConvoUpdated();
+  saveAll();
+  loadChat();
+  hideReset();
+  toast("초기화 완료");
+}
+
+function renameConvo(){
+  hideMenu();
+  if(!currentCharId || !currentConvoId) return;
+  const list = convos[currentCharId] || [];
+  const cv = list.find(x=>x.id===currentConvoId);
+  if(!cv) return;
+  const name = prompt("대화 이름 바꾸기", cv.name || "대화");
+  if(name === null) return;
+  cv.name = (name.trim() || cv.name);
+  cv.updatedAt = Date.now();
+  convos[currentCharId] = list;
+  saveAll();
+  document.getElementById("chatTitle").textContent = (getCharName()) + " · " + cv.name;
+  toast("이름 변경됨");
+}
+
+/* ---------------- security-ish helper ---------------- */
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;");
+}
+
+/* ---------------- init: clean legacy old keys (optional) ---------------- */
+// (Do nothing; keep user's old V3 data separate)
+
+</script>
+</body>
+</html>
